@@ -2,11 +2,10 @@ from torch
 import pickle as pkl
 
 from model.GraphSGAN import GraphSGAN
+from data_loader import load_data
 
 if __name__ == "__main__":
-    torch.cuda.manual_seed(1)
-    with open('cora.dataset', 'r') as fdata:
-        dataset = pkl.load(fdata)
+    adj, features, labels, idx_train, idx_val, idx_test = load_data('cora')
 
     args = {
         momentum = 0.5,
@@ -17,6 +16,6 @@ if __name__ == "__main__":
         unlabel_weight = 1,
     }
 
-    gan = GraphSGAN(Generator(dataset, args)
+    gan = GraphSGAN(adj, features, labels, idx_train, idx_val, idx_test, args)
     gan.train() 
 

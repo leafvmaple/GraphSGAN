@@ -5,21 +5,31 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.parameter import Parameter
 from torch.autograd import Variable
+from torch import LongTensor, Tensor
 
 from utils.generator import Generator
 from utils.discriminator import Discriminator
 from utils.functional import log_sum_exp, pull_away_term
 
 class GraphSGAN(object):
-    def __init__(self, dataset, args):
-        self.generator = Generator(200, dataset.k + dataset.d)
-        self.discriminator = Discriminator(dataset.k + dataset.d, dataset.m)
+    def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, args, embbedings):
+        n = len(features)
+        d = len(embbedings)
+        m = np.max(labels)
+        k = features.shape[1]
+
+        self.adj = adj
+        self.features = features
+        self.label = labels
+
+        self.generator = Generator(200, n + 200)
+        self.discriminator = Discriminator(1000, 200)
         self.args = args
-        self.dataset = dataset
+        self.test_num = len(idx_test)
 
         os.makedirs(args.tempdir)
-        self.embedding_layer = nn.Embedding(dataset.n, dataset.d)
-        self.embedding_layer.weight = Parameter(torch.Tensor(dataset.embbedings))
+        self.embedding_layer = nn.Embedding(n, d)
+        self.embedding_layer.weight = Parameter(torch.Tensor(embbedings))
         torch.save(self.generator, os.path.join(args.tempdir, 'generator.pkl'))
         torch.save(self.discriminator, os.path.join(args.tempdir, 'discriminator.pkl'))
         torch.save(self.embedding_layer, os.path.join(args.tempdir, 'embedding.pkl'))
@@ -77,10 +87,14 @@ class GraphSGAN(object):
     def train(self):
         NUM_BATCH = 100
         for epoch in range(self.args.epochs):
+            loss_supervised = 0
+            loss_unsupervised = 0
+            loss_gen = 0
+            accuracy = 0
+
             self.generator.train()
             self.discriminator.train()
             self.discriminator.turn = epoch
-            loss_supervised = loss_unsupervised = loss_gen = accuracy = 0.
             for batch_num in range(NUM_BATCH):
                 idf_unlabel1 = self.dataset.unlabel_batch(self.args.batch_size)
                 idf_unlabel2 = self.dataset.unlabel_batch(self.args.batch_size)
@@ -106,7 +120,7 @@ class GraphSGAN(object):
             print("Iteration %d, loss_supervised = %.4f, loss_unsupervised = %.4f, loss_gen = %.4f train acc = %.4f" % (epoch, loss_supervised, loss_unsupervised, loss_gen, accuracy))
 
             tmp = self.eval()
-            print("Eval: correct %d / %d, Acc: %.2f"  % (tmp, self.dataset.test_num, tmp * 100. / self.dataset.test_num))
+            print("Eval: correct %d / %d, Acc: %.2f"  % (tmp, self.test_num, tmp * 100. / self.dataset.test_num))
             torch.save(self.generator, os.path.join(self.args.tempdir, 'generator.pkl'))
             torch.save(self.discriminator, os.path.join(self.args.tempdir, 'discriminator.pkl'))
 
@@ -117,7 +131,10 @@ class GraphSGAN(object):
     def eval(self):
         self.generator.eval()
         self.discriminator.eval()
-        ids, f, y = self.dataset.test_batch()
+        ids = random.sample(self.test_ids, batch_size)
+        ids = LongTensor(ids)
+        f = Tensor(self.features[ids])
+        y = LongTensor(self.label[ids])) if tensor else (ids, self.features[ids], self.label[ids])
         x = self.make_input(ids, f, volatile = True)
         if self.args.cuda:
             x, y = x.cuda(), y.cuda()

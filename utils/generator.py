@@ -5,7 +5,7 @@ from torch.nn import functional as F
 from torch.autograd import Variable
 from functional import LinearWeightNorm
 class Discriminator(nn.Module):
-    def __init__(self, input_dim = 28 ** 2, output_dim = 10):
+    def __init__(self, input_dim, output_dim):
         super(Discriminator, self).__init__()
         self.input_dim = input_dim
         self.layers = torch.nn.ModuleList([
