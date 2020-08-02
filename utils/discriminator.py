@@ -3,7 +3,7 @@ from torch.nn.parameter import Parameter
 from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Variable
-from functional import LinearWeightNorm
+from utils.functional import LinearWeightNorm
 class Discriminator(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(Discriminator, self).__init__()

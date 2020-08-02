@@ -6,6 +6,9 @@ import torch.optim as optim
 from torch.nn.parameter import Parameter
 from torch.autograd import Variable
 from torch import LongTensor, Tensor
+import random
+import numpy as np
+from functools import reduce
 
 from utils.generator import Generator
 from utils.discriminator import Discriminator
@@ -13,22 +16,15 @@ from utils.functional import log_sum_exp, pull_away_term
 
 class GraphSGAN(object):
     def __init__(self, adj, features, labels, idx_train, idx_val, idx_test, args, embbedings):
-        n = len(features)
-        d = len(embbedings)
-        m = np.max(labels)
-        k = features.shape[1]
+        self.parse(adj, features, labels)
 
-        self.adj = adj
-        self.features = features
-        self.label = labels
-
-        self.generator = Generator(200, n + 200)
+        self.generator = Generator(200, self.n + 200)
         self.discriminator = Discriminator(1000, 200)
         self.args = args
         self.test_num = len(idx_test)
 
         os.makedirs(args.tempdir)
-        self.embedding_layer = nn.Embedding(n, d)
+        self.embedding_layer = nn.Embedding(self.n, self.d)
         self.embedding_layer.weight = Parameter(torch.Tensor(embbedings))
         torch.save(self.generator, os.path.join(args.tempdir, 'generator.pkl'))
         torch.save(self.discriminator, os.path.join(args.tempdir, 'discriminator.pkl'))
@@ -131,13 +127,24 @@ class GraphSGAN(object):
     def eval(self):
         self.generator.eval()
         self.discriminator.eval()
-        ids = random.sample(self.test_ids, batch_size)
-        ids = LongTensor(ids)
+        ids = LongTensor(random.sample(range(self.n), self.test_num))
         f = Tensor(self.features[ids])
-        y = LongTensor(self.label[ids])) if tensor else (ids, self.features[ids], self.label[ids])
+        y = Tensor(self.labels[ids])
         x = self.make_input(ids, f, volatile = True)
         if self.args.cuda:
             x, y = x.cuda(), y.cuda()
         pred1 = self.predict(x)
 
         return torch.sum(pred1 == y)
+
+    def parse(self, adj, features, labels):
+        self.features = features
+        self.labels = labels
+        self.n = len(features)
+        self.m = np.max(labels) + 1
+        self.k = features.shape[1]
+        self.adj = adj
+        ratio = 0.5
+        for k, v in enumerate(adj):
+            adj_features = reduce(lambda x, y: x + y, [self.features[y] for y in v.indices])
+            self.features[k] = self.features[k] * ratio + adj_features * (1 - ratio) / v.nnz
